@@ -173,7 +173,7 @@
                       "displayName": "App Settings"
                     },
                     "properties": {
-                      "AppSettings:StratisQBitNinjaBaseUrl": "https://stratis-qbitninja.stratisplatform.com/",
+                      "AppSettings:StratisQBitNinjaBaseUrl": "https://stratis-qbitninja.stratisplatform.com",
                       "AppSettings:BitcoinQBitNinjaBaseUrl": "https://bitcoin-qbitninja.stratisplatform.com",
                       "AppSettings:IsTestNet": "false",
                       "ASPNETCORE_ENVIRONMENT": "Production",
@@ -192,7 +192,7 @@
                       "displayName": "MSDeploy"
                     },
                     "properties": {
-                      "packageUri": "https://stratisstorage.blob.core.windows.net/ico/Release/1.0/Stratis.ICOPlatform.zip?st=2018-05-06T23%3A00%3A00Z&se=2019-12-29T22%3A00%3A00Z&sp=r&sv=2017-04-17&sr=b&sig=lxHmZTsSNDF1ygrAOmdNjF7pK2Kn9SnD1OhTKOrzF80%3D",
+                      "packageUri": "https://stratisstorage.blob.core.windows.net/ico/Release/1.0.0/Stratis.ICOPlatform.zip?st=2018-05-08T23%3A00%3A00Z&se=2018-12-31T21%3A59%3A00Z&sp=r&sv=2017-07-29&sr=b&sig=A8X%2FmweIAVjKb537w%2FxLHlgloGHVC42SF4hwjf1jl%2Fg%3D",
                       "dbType": "None",
                       "connectionString": "",
                       "setParameters": {
