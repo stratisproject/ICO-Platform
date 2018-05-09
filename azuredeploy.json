@@ -1,0 +1,269 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "siteName": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "This is the name of the sub-domain that will be created, please ensure all characters are lower-case. i.e. 'stratisico'.azurewebsites.com"
+      }
+    },
+    "siteLocation": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlServerName": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "This is the name of the sub-domain that will be created, please ensure all characters are lower-case. i.e. 'stratisicodb'.azuredatabases.com"
+      }
+    },
+    "sqlServerLocation": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "Sql Server Database Name": {
+      "type": "string",
+      "defaultValue": "icoplatformdb",
+      "minLength": 1,
+      "metadata": {
+        "description": "This is the name of the database that will be created, please ensure all characters are lower-case"
+      }
+    },
+    "sqlAdministratorLogin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Sql Server Password": {
+      "type": "securestring",
+      "minLength": 1
+    }
+  },
+  "variables": {
+    "LogStorageName": "[concat('logstorage', uniqueString(resourceGroup().id))]",
+    "storageAccountId": "[concat(resourceGroup().id,'/providers/Microsoft.Storage/storageAccounts/', variables('LogStorageName'))]"
+
+
+
+  },
+            "resources": [
+              {
+                "name": "[parameters('sqlServerName')]",
+                "type": "Microsoft.Sql/servers",
+                "location": "[parameters('sqlServerLocation')]",
+                "tags": {
+                  "displayName": "SqlServer"
+                },
+                "apiVersion": "2014-04-01-preview",
+                "properties": {
+                  "administratorLogin": "[parameters('sqlAdministratorLogin')]",
+                  "administratorLoginPassword": "[parameters('Sql Server Password')]"
+                },
+                "resources": [
+                  {
+                    "name": "[parameters('Sql Server Database Name')]",
+                    "type": "databases",
+                    "location": "[parameters('sqlServerLocation')]",
+                    "tags": {
+                      "displayName": "Database"
+                    },
+                    "apiVersion": "2014-04-01-preview",
+                    "dependsOn": [
+                      "[resourceId('Microsoft.Sql/servers/', parameters('sqlServerName'))]"
+                    ],
+                    "properties": {
+                      "collation": "SQL_Latin1_General_CP1_CI_AS",
+                      "edition": "Standard",
+                      "maxSizeBytes": "1073741824",
+                      "requestedServiceObjectiveName": "S0"
+                    }
+                  },
+                  {
+                    "type": "firewallrules",
+                    "apiVersion": "2014-04-01-preview",
+                    "dependsOn": [
+                      "[resourceId('Microsoft.Sql/servers/', parameters('sqlServerName'))]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "name": "AllowAllWindowsAzureIps",
+                    "properties": {
+                      "endIpAddress": "0.0.0.0",
+                      "startIpAddress": "0.0.0.0"
+                    }
+                  }
+                ]
+              },
+              {
+                "apiVersion": "2015-08-01",
+                "name": "[parameters('siteName')]",
+                "type": "Microsoft.Web/serverfarms",
+                "location": "[parameters('siteLocation')]",
+                "tags": {
+                  "displayName": "HostingPlan"
+                },
+                "sku": {
+                  "capacity": "1",
+                  "name": "S1"
+                },
+                "properties": {
+                  "name": "[parameters('siteName')]"
+                }
+              },
+              {
+                "apiVersion": "2015-08-01",
+                "name": "[parameters('siteName')]",
+                "type": "Microsoft.Web/sites",
+                "location": "[parameters('siteLocation')]",
+                "dependsOn": [
+                  "[resourceId('Microsoft.Web/serverFarms/', parameters('siteName'))]"
+                ],
+                "tags": {
+                  "[concat('hidden-related:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', parameters('siteName'))]": "empty",
+                  "displayName": "Website"
+                },
+                "properties": {
+                  "name": "[parameters('siteName')]",
+                  "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('siteName'))]",
+                  "siteConfig": {
+                    "netFrameworkVersion": "v4.0",
+                    "phpVersion": "",
+                    "pythonVersion": "",
+                    "nodeVersion": "",
+                    "linuxFxVersion": "",
+                    "webSocketsEnabled": false,
+                    "javaVersion": null,
+                    "javaContainer": null,
+                    "javaContainerVersion": null
+                  }
+                },
+                "resources": [
+                  {
+                    "apiVersion": "2015-08-01",
+                    "type": "config",
+                    "name": "connectionstrings",
+                    "dependsOn": [
+                      "[resourceId('Microsoft.Web/Sites/', parameters('siteName'))]",
+                      "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]",
+                      "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/Extensions/MSDeploy')]",
+                      "[resourceId('Microsoft.Storage/storageAccounts', variables('LogStorageName'))]"
+                    ],
+                    "properties": {
+                      "DefaultConnection": {
+                        "type": "SQLAzure",
+                        "value": "[concat('Server=tcp:', reference(concat('Microsoft.Sql/servers/', parameters('sqlServerName'))).fullyQualifiedDomainName, ',1433;Initial Catalog=', parameters('Sql Server Database Name'), ';User Id=', parameters('sqlAdministratorLogin'),';Password=', parameters('Sql Server Password'), ';MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Persist Security Info=False')]"
+                      },
+                      "LogStorage": {
+                        "type": "Custom",
+                        "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('LogStorageName'),';AccountKey=',concat(listKeys(variables('storageAccountId'),'2015-05-01-preview').key1),';EndpointSuffix=core.windows.net')]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "appsettings",
+                    "type": "config",
+                    "apiVersion": "2015-08-01",
+                    "dependsOn": [
+                      "[resourceId('Microsoft.Web/sites', parameters('siteName'))]",
+                      "[concat('Microsoft.Web/Sites/', parameters('siteName'), '/Extensions/MSDeploy')]",
+                      "[resourceId('Microsoft.Storage/storageAccounts', variables('LogStorageName'))]"
+                    ],
+                    "tags": {
+                      "displayName": "App Settings"
+                    },
+                    "properties": {
+                      "AppSettings:StratisQBitNinjaBaseUrl": "https://stratis-qbitninja.stratisplatform.com/",
+                      "AppSettings:BitcoinQBitNinjaBaseUrl": "https://bitcoin-qbitninja.stratisplatform.com",
+                      "AppSettings:IsTestNet": "false",
+                      "ASPNETCORE_ENVIRONMENT": "Production",
+                      "WEBSITE_HTTPLOGGING_RETENTION_DAYS": "3"
+                    }
+                  },
+                  {
+                    "name": "MSDeploy",
+                    "type": "extensions",
+                    "location": "[parameters('siteLocation')]",
+                    "apiVersion": "2015-08-01",
+                    "dependsOn": [
+                      "[resourceId('Microsoft.Web/sites', parameters('siteName'))]"
+                    ],
+                    "tags": {
+                      "displayName": "MSDeploy"
+                    },
+                    "properties": {
+                      "packageUri": "https://stratisstorage.blob.core.windows.net/ico/Release/1.0/Stratis.ICOPlatform.zip?st=2018-05-06T23%3A00%3A00Z&se=2019-12-29T22%3A00%3A00Z&sp=r&sv=2017-04-17&sr=b&sig=lxHmZTsSNDF1ygrAOmdNjF7pK2Kn9SnD1OhTKOrzF80%3D",
+                      "dbType": "None",
+                      "connectionString": "",
+                      "setParameters": {
+                        "IIS Web Application Name": "[parameters('siteName')]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "logs",
+                    "type": "config",
+                    "apiVersion": "2015-08-01",
+                    "dependsOn": [
+                      "[resourceId('Microsoft.Web/sites', parameters('siteName'))]",
+                      "[resourceId('Microsoft.Storage/storageAccounts', variables('LogStorageName'))]"
+                    ],
+                    "tags": {
+                      "displayName": "Logs"
+                    },
+                    "properties": {
+                      "applicationLogs": {
+                        "fileSystem": {
+                          "level": "Error"
+                        },
+                        "azureTableStorage": {
+                          "level": "Off",
+                          "sasUrl": null
+                        },
+                        "azureBlobStorage": {
+                          "level": "Off",
+                          "sasUrl": null,
+                          "retentionInDays": null
+                        }
+                      },
+                      "httpLogs": {
+                        "fileSystem": {
+                          "retentionInMb": "100",
+                          "retentionInDays": "7",
+                          "enabled": true
+                        },
+                        "azureBlobStorage": {
+                          "sasUrl": null,
+                          "retentionInDays": 3,
+                          "enabled": false
+                        }
+                      },
+                      "failedRequestsTracing": {
+                        "enabled": true
+                      },
+                      "detailedErrorMessages": {
+                        "enabled": true
+                      }
+                    }
+                  }
+
+                ]
+              },
+              {
+                "name": "[variables('LogStorageName')]",
+                "type": "Microsoft.Storage/storageAccounts",
+                "location": "[resourceGroup().location]",
+                "apiVersion": "2016-01-01",
+                "sku": {
+                  "name": "Standard_LRS"
+                },
+                "dependsOn": [
+                  "[resourceId('Microsoft.Web/sites', parameters('siteName'))]"
+                    ],
+                "tags": {
+                  "displayName": "LogStorage"
+                },
+                "kind": "Storage"
+              }
+            ]
+          }
